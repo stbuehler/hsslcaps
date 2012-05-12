@@ -1,0 +1,25 @@
+name:           hsslcaps
+version:        0.1
+cabal-version:  >= 1.2
+build-type:     Simple
+author:         Stefan Bühler
+license:        GPL-2
+copyright:      2012 Stefan Bühler
+homepage:       https://stbuehler.de
+
+executable hsslcaps
+  hs-source-dirs:  src
+  main-is:         Main.hs
+  build-depends:   base >= 4, haskell98, transformers, mtl, bytestring, network, random, time, asn1-data, array, utf8-string
+  ghc-options:     -Wall
+  other-modules:   
+                   Net.TLSCaps,
+                   Net.TLSCaps.CipherSuites,
+                   Net.TLSCaps.EnumTexts,
+                   Net.TLSCaps.Examples,
+                   Net.TLSCaps.Handshake,
+                   Net.TLSCaps.OID,
+                   Net.TLSCaps.Record,
+                   Net.TLSCaps.Stream,
+                   Net.TLSCaps.Utils
+
