@@ -2,6 +2,7 @@
 module Net.TLSCaps.Handshake
 	( Handshake(..)
 	, SignatureAndHashAlgorithm(..)
+	, Extension(..)
 	, parseHandshake
 	, writeHandshake
 	) where

@@ -5,14 +5,21 @@ module Net.TLSCaps.Record
 	, StreamTransformOut
 	, StreamTransformIn
 	, Message(..)
+	, TLSIOState(..)
 	, TLSState(..)
 	, Handshake(..)
+	, Extension(..)
 	, emptyState
 	, tlsReceived
 	, tlsSend
 	, tlsSendHandshake
+	, tlsKill
+	, tlsClose
+	, tlsCloseWithAlert
 	, _tlsRecv
 	, tlsRecv
+	, whenTLSOpen
+	, tlsProcess
 	, testRecv
 	) where
 
@@ -37,24 +44,20 @@ type StreamTransformOut s = forall m. Monad m => s -> B.ByteString -> StateT TLS
 type StreamTransformIn s = forall m. Monad m => s -> B.ByteString -> StateT TLSState m B.ByteString
 data StreamTransformer = forall s. StreamTransformer { rtState :: s, rtTransIn :: StreamTransformIn s, rtTransOut :: StreamTransformOut s }
 
+data TLSIOState = TLS_Open | TLS_Closed | TLS_Killed deriving (Show, Eq)
+
+-- tsTraceMessages contains recent messages in front; True: in, False: out
+data TLSState = TLSState { tsStreamAlert, tsStreamHandshake, tsStreamIn, tsStreamOut :: B.ByteString, tsTransform :: StreamTransformer, tsVersion :: Word16, tsLastReceivedVersion :: Word16, tsMessagesIn :: [Message], tsState :: TLSIOState, tsTraceMessages :: Maybe [(Bool,Message)] }
+
 _fragments :: Int -> B.ByteString -> [B.ByteString]
 _fragments n s = if (B.length s > (fromIntegral n)) then let (a,b) = B.splitAt (fromIntegral n) s in a:_fragments n b else [s]
 
 data Message = ChangeCipherSpec | Alert Word8 Word8 | Handshake Word16 Word8 B.ByteString | AppData B.ByteString deriving (Eq)
 
-data ErrorMonad x = Result x | Error String
-instance  Monad ErrorMonad  where
-    (Result x) >>= k  = k x
-    (Error s)  >>= _  = Error s
-    (Result _) >> k   = k
-    (Error s) >> _    = Error s
-    return            = Result
-    fail              = Error
-
 
 instance Show Message where
 	show (ChangeCipherSpec) = "ChangeCipherSpec"
-	show (Alert lvl alert) = "Alert (" ++ show lvl ++ "," ++ show alert ++ ")"
+	show (Alert lvl alert) = "Alert (" ++ alertLevelText lvl ++ "," ++ alertDescText alert ++ ")"
 	show (Handshake ver t h) = case parseHandshake ver t h of
 		Result handshake -> "Handshake " ++ show handshake
 		Error err -> err ++ ": Handshake[" ++ versionText ver ++ "] " ++ handshakeTypeDesc t ++ " (" ++ hexS h ++ ")"
@@ -73,12 +76,13 @@ msg_serialize (Alert lvl alert) = B.pack [lvl,alert]
 msg_serialize (Handshake _ t h) = B.append (B.pack $ t:Stream.netEncode 3 (B.length h)) h
 msg_serialize (AppData d) = d
 
-data TLSState = TLSState { tsStreamAlert, tsStreamHandshake, tsStreamIn, tsStreamOut :: B.ByteString, tsTransform :: StreamTransformer, tsVersion :: Word16, tsLastReceivedVersion :: Word16, tsMessagesIn :: [Message] }
-
 dummyTransformer :: StreamTransformer
 dummyTransformer = StreamTransformer () (\_ r -> return r) (\_ r -> return $ _fragments (2^(14::Int)) r)
 emptyState :: TLSState
-emptyState = TLSState { tsStreamAlert = B.empty, tsStreamHandshake = B.empty, tsStreamIn = B.empty, tsStreamOut = B.empty, tsTransform = dummyTransformer, tsVersion = rv_tls1_0, tsLastReceivedVersion = 0, tsMessagesIn = [] }
+emptyState = TLSState { tsStreamAlert = B.empty, tsStreamHandshake = B.empty, tsStreamIn = B.empty, tsStreamOut = B.empty, tsTransform = dummyTransformer, tsVersion = rv_tls1_0, tsLastReceivedVersion = 0, tsMessagesIn = [], tsState = TLS_Open, tsTraceMessages = Nothing }
+
+whenTLSOpen :: Monad m => StateT TLSState m () -> StateT TLSState m ()
+whenTLSOpen f = gets tsState >>= \s -> when (s == TLS_Open) f
 
 tlsTranformIn :: Monad m => B.ByteString -> StateT TLSState m B.ByteString
 tlsTranformIn r = do
@@ -91,23 +95,39 @@ tlsTranformOut r = do
 	case tsTransform state of StreamTransformer s _ f -> f s r
 
 tlsReceived :: Monad m => B.ByteString -> StateT TLSState m ()
-tlsReceived d = do
+tlsReceived d = whenTLSOpen $ do
 	state <- get
 	put $ state { tsStreamIn = B.append (tsStreamIn state) d }
 	_tlsDecode
 
 __tlsSend :: Monad m => Word8 -> Word16 -> B.ByteString -> StateT TLSState m ()
-__tlsSend rtyp rver d = do
+__tlsSend rtyp rver d = whenTLSOpen $ do
 	fragments <- tlsTranformOut d
 	let rhead = B.pack (rtyp:Stream.netEncode 2 rver)
 	let buf = B.concat $ concat $ map (\f -> [rhead, B.pack $ Stream.netEncode 2 (B.length f), f]) fragments
 	modify $ \state -> state { tsStreamOut = B.append (tsStreamOut state) buf }
 
 _tlsSend :: Monad m => Message -> StateT TLSState m ()
-_tlsSend msg = do
+_tlsSend msg = whenTLSOpen $ do
 	state <- get
+	case (tsTraceMessages state) of
+		Nothing -> return ()
+		Just msgs -> put $ state { tsTraceMessages = Just $ (False,msg):msgs }
 	__tlsSend (msg_code msg) (tsVersion state) (msg_serialize msg)
 	-- todo: show to tranformer. store for debug?
+
+-- sends no alert, 
+tlsKill :: Monad m => StateT TLSState m ()
+tlsKill = modify $ \state -> state { tsStreamAlert = B.empty, tsStreamHandshake = B.empty, tsStreamIn = B.empty, tsStreamOut = B.empty, tsMessagesIn = [], tsState = TLS_Killed }
+
+tlsClose :: Monad m => StateT TLSState m ()
+tlsClose = tlsCloseWithAlert al_warning ad_close_notify
+
+tlsCloseWithAlert :: Monad m => Word8 -> Word8 -> StateT TLSState m ()
+tlsCloseWithAlert lvl alert = whenTLSOpen $ do
+	_tlsSend (Alert lvl alert)
+	modify $ \state -> state { tsStreamAlert = B.empty, tsStreamHandshake = B.empty, tsStreamIn = B.empty, tsMessagesIn = [], tsState = TLS_Closed }
+
 
 tlsSend :: Monad m => B.ByteString -> StateT TLSState m ()
 tlsSend msg = _tlsSend $ AppData msg
@@ -132,17 +152,21 @@ tlsRecv = do
 	case mmsg of
 		Just msg -> case msg of
 			AppData d -> return d
-			_ -> tlsRecv -- next message
+			_ -> tlsProcess msg >> tlsRecv -- next message
 		Nothing -> return B.empty
 
 _tlsAlert :: Monad m => Word8 -> Word8 -> StateT TLSState m ()
 _tlsAlert lvl alert = _tlsSend $ Alert lvl alert
 
 _tlsPutInMessage :: Monad m => Message -> StateT TLSState m ()
-_tlsPutInMessage msg = do
+_tlsPutInMessage msg = whenTLSOpen $ do
 	state <- get
-	put $ state { tsMessagesIn = tsMessagesIn state ++ [msg] }
+	let nmsgs = case (tsTraceMessages state) of
+		Nothing -> Nothing
+		Just msgs -> Just $ (True,msg):msgs
+	put $ state { tsMessagesIn = tsMessagesIn state ++ [msg], tsTraceMessages = nmsgs }
 	-- todo: show to transformer
+	tlsProcessAlways msg
 
 _tlsDecode :: Monad m => StateT TLSState m ()
 _tlsDecode = do
@@ -190,7 +214,7 @@ _tlsDecodeAlerts = do
 		decode x = ([], x)
 
 _tlsDecodeHandshakes :: Monad m => StateT TLSState m ()
-_tlsDecodeHandshakes = do
+_tlsDecodeHandshakes = whenTLSOpen $ do
 	stream <- gets tsStreamHandshake
 	M.when (B.length stream >= 4) $ do
 		let htype:hlen = B.unpack $ B.take 4 stream
@@ -201,6 +225,32 @@ _tlsDecodeHandshakes = do
 			let handshake = B.take len (B.drop 4 stream)
 			_tlsPutInMessage $ Handshake curVer htype handshake
 			_tlsDecodeHandshakes -- loop
+
+-- run this always before returning message to the user
+-- only passive stuff, don't send anything
+tlsProcessAlways :: Monad m => Message -> StateT TLSState m ()
+tlsProcessAlways msg = case msg of
+	Alert lvl _ -> do
+		when (lvl == al_fatal) tlsKill
+	Handshake ver t h -> case parseHandshake ver t h of
+		Result (ServerHello shver _ _ _ _ _) -> do
+			modify $ \state -> state { tsVersion = shver }
+		_ -> return ()
+	_ -> return ()
+
+-- run this if the user doesn't want to see it
+-- or run manually by user to apply default action
+tlsProcess :: Monad m => Message -> StateT TLSState m ()
+tlsProcess msg = case msg of
+	Alert _ _ -> do
+		tlsClose
+		error (show msg)
+	Handshake ver t h -> case parseHandshake ver t h of
+		Result _ -> return ()
+		Error _ -> tlsKill -- err
+	_ -> return ()
+
+
 
 testRecv :: B.ByteString -> IO.IO ()
 testRecv buf = do

@@ -6,6 +6,7 @@ module Net.TLSCaps.Utils
 	, showAsnTree
 	, decodeDER_ASN1
 	, createTLSRandom
+	, ErrorMonad(..)
 	) where
 
 import qualified Data.Array.IArray as A
@@ -84,3 +85,13 @@ createTLSRandom = do
 	now <- getPOSIXTime
 	rnd <- M.replicateM 28 $ getStdRandom (randomR (0, 255::Int))
 	return $ B.pack $ netEncode 4 (floor (now) :: Integer) ++ (map fromIntegral rnd)
+
+
+data ErrorMonad x = Result x | Error String
+instance  Monad ErrorMonad  where
+    (Result x) >>= k  = k x
+    (Error s)  >>= _  = Error s
+    (Result _) >> k   = k
+    (Error s) >> _    = Error s
+    return            = Result
+    fail              = Error
