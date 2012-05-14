@@ -12,11 +12,11 @@ import Data.Word (Word16)
 
 cipherText :: Word16 -> String
 cipherText cipherID = case cipherIDInfo cipherID of
-	Just (cipher, _, _) -> show cipher
+	Just (cipher, _, _, _) -> show cipher
 	Nothing -> "Unknown cipher id " ++ show cipherID
 
 
-cipherIDInfo :: Word16 -> Maybe (CipherSuite, MacAlgorithm, CipherAlgorithm)
+cipherIDInfo :: Word16 -> Maybe (CipherSuite, KeyExchange, CipherAlgorithm, MacAlgorithm)
 cipherIDInfo cipherID = case cipherID of
 	0x0000 -> Just (TLS_NULL_WITH_NULL_NULL, KXCH_NULL, CIPHER_NULL, MAC_NULL)
 	0x0001 -> Just (TLS_RSA_WITH_NULL_MD5, KXCH_RSA, CIPHER_NULL, MAC_HMAC_MD5)
