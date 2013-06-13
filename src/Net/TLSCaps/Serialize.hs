@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses,FlexibleInstances #-}
 
-module Net.TLSCaps.Stream
+module Net.TLSCaps.Serialize
 	( OutputStream(..)
 	, InputStream(..)
 	, netEncode

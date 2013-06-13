@@ -35,7 +35,7 @@ import Control.Monad.Trans.Class (lift)
 import qualified System.IO as IO
 
 
-import qualified Net.TLSCaps.Stream as Stream
+import qualified Net.TLSCaps.Serialize as Serialize
 import Net.TLSCaps.Handshake
 import Net.TLSCaps.Utils
 import Net.TLSCaps.EnumTexts
@@ -73,7 +73,7 @@ msg_code (AppData _) = rt_application_data
 msg_serialize :: Message -> B.ByteString
 msg_serialize (ChangeCipherSpec) = B.pack [1]
 msg_serialize (Alert lvl alert) = B.pack [lvl,alert]
-msg_serialize (Handshake _ t h) = B.append (B.pack $ t:Stream.netEncode 3 (B.length h)) h
+msg_serialize (Handshake _ t h) = B.append (B.pack $ t:Serialize.netEncode 3 (B.length h)) h
 msg_serialize (AppData d) = d
 
 dummyTransformer :: StreamTransformer
@@ -103,8 +103,8 @@ tlsReceived d = whenTLSOpen $ do
 __tlsSend :: Monad m => Word8 -> Word16 -> B.ByteString -> StateT TLSState m ()
 __tlsSend rtyp rver d = whenTLSOpen $ do
 	fragments <- tlsTranformOut d
-	let rhead = B.pack (rtyp:Stream.netEncode 2 rver)
-	let buf = B.concat $ concat $ map (\f -> [rhead, B.pack $ Stream.netEncode 2 (B.length f), f]) fragments
+	let rhead = B.pack (rtyp:Serialize.netEncode 2 rver)
+	let buf = B.concat $ concat $ map (\f -> [rhead, B.pack $ Serialize.netEncode 2 (B.length f), f]) fragments
 	modify $ \state -> state { tsStreamOut = B.append (tsStreamOut state) buf }
 
 _tlsSend :: Monad m => Message -> StateT TLSState m ()
@@ -173,9 +173,9 @@ _tlsDecode = do
 		stream <- gets tsStreamIn
 		M.when (B.length stream >= 5) $ do
 			let [rtyp, rvmaj, rvmin, lHigh, lLow] = B.unpack $ B.take 5 stream
-			let len = Stream.netDecode 2 [lHigh, lLow] :: Int64
+			let len = Serialize.netDecode 2 [lHigh, lLow] :: Int64
 			M.when (B.length stream >= (5 + len)) $ do
-				let rver = Stream.netDecode 2 [rvmaj, rvmin] :: Word16
+				let rver = Serialize.netDecode 2 [rvmaj, rvmin] :: Word16
 				modify $ \state -> state { tsStreamIn = B.drop (5 + len) stream, tsLastReceivedVersion = rver }
 				fragment <- tlsTranformIn (B.take len (B.drop 5 stream))
 				handle rtyp rver fragment
@@ -218,7 +218,7 @@ _tlsDecodeHandshakes = whenTLSOpen $ do
 	stream <- gets tsStreamHandshake
 	M.when (B.length stream >= 4) $ do
 		let htype:hlen = B.unpack $ B.take 4 stream
-		let len = Stream.netDecode 3 hlen :: Int64
+		let len = Serialize.netDecode 3 hlen :: Int64
 		M.when (B.length stream >= (4 + len)) $ do
 			modify $ \state -> state { tsStreamHandshake = B.drop (4 + len) stream }
 			curVer <- gets tsLastReceivedVersion

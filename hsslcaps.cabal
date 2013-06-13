@@ -20,7 +20,7 @@ library
                    Net.TLSCaps.OID,
                    Net.TLSCaps.Parameters,
                    Net.TLSCaps.Record,
-                   Net.TLSCaps.Stream,
+                   Net.TLSCaps.Serialize,
                    Net.TLSCaps.Utils
 
 

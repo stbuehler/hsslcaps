@@ -11,7 +11,7 @@ module Net.TLSCaps.Handshake
 import Data.Word (Word8, Word16)
 import qualified Data.ByteString.Lazy as B
 
-import Net.TLSCaps.Stream
+import Net.TLSCaps.Serialize
 import Net.TLSCaps.Utils
 import Net.TLSCaps.EnumTexts
 import Net.TLSCaps.CipherSuites

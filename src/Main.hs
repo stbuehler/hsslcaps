@@ -5,7 +5,7 @@ import Net.TLSCaps.Handshake (parseHandshake)
 import Net.TLSCaps.Utils (ErrorMonad(..))
 import qualified Net.TLSCaps.Parameters as P
 
-import System( getArgs )
+import System.Environment (getArgs)
 
 tlsHandle :: MonadIO m => Message -> TLSMonad m ()
 tlsHandle msg = case msg of
