@@ -23,6 +23,7 @@ library
                    Net.TLSCaps.Record,
                    Net.TLSCaps.Serialize,
                    Net.TLSCaps.Stream,
+                   Net.TLSCaps.StreamParser,
                    Net.TLSCaps.Utils
 
 
