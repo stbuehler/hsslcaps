@@ -24,6 +24,7 @@ library
                    Net.TLSCaps.Serialize,
                    Net.TLSCaps.Stream,
                    Net.TLSCaps.StreamParser,
+                   Net.TLSCaps.TLSStream,
                    Net.TLSCaps.Utils
 
 
