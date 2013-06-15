@@ -47,39 +47,39 @@ data StreamTransformer = forall s. StreamTransformer { rtState :: s, rtTransIn :
 data TLSIOState = TLS_Open | TLS_Closed | TLS_Killed deriving (Show, Eq)
 
 -- tsTraceMessages contains recent messages in front; True: in, False: out
-data TLSState = TLSState { tsStreamAlert, tsStreamHandshake, tsStreamIn, tsStreamOut :: B.ByteString, tsTransform :: StreamTransformer, tsVersion :: Word16, tsLastReceivedVersion :: Word16, tsMessagesIn :: [Message], tsState :: TLSIOState, tsTraceMessages :: Maybe [(Bool,Message)] }
+data TLSState = TLSState { tsStreamAlert, tsStreamHandshake, tsStreamIn, tsStreamOut :: B.ByteString, tsTransform :: StreamTransformer, tsVersion :: TLSVersion, tsLastReceivedVersion :: TLSVersion, tsMessagesIn :: [Message], tsState :: TLSIOState, tsTraceMessages :: Maybe [(Bool,Message)] }
 
 _fragments :: Int -> B.ByteString -> [B.ByteString]
 _fragments n s = if (B.length s > (fromIntegral n)) then let (a,b) = B.splitAt (fromIntegral n) s in a:_fragments n b else [s]
 
-data Message = ChangeCipherSpec | Alert Word8 Word8 | Handshake Word16 Word8 B.ByteString | AppData B.ByteString deriving (Eq)
+data Message = ChangeCipherSpec | Alert TLSAlertLevel TLSAlertDescription | Handshake TLSVersion TLSHandshakeType B.ByteString | AppData B.ByteString deriving (Eq)
 
 
 instance Show Message where
 	show (ChangeCipherSpec) = "ChangeCipherSpec"
-	show (Alert lvl alert) = "Alert (" ++ alertLevelText lvl ++ "," ++ alertDescText alert ++ ")"
+	show (Alert lvl alert) = "Alert " ++ show (lvl, alert)
 	show (Handshake ver t h) = case parseHandshake ver t h of
 		Result handshake -> "Handshake " ++ show handshake
-		Error err -> err ++ ": Handshake[" ++ versionText ver ++ "] " ++ handshakeTypeDesc t ++ " (" ++ hexS h ++ ")"
+		Error err -> err ++ ": Handshake[" ++ show ver ++ "] " ++ show t ++ " (" ++ hexS h ++ ")"
 	show (AppData d) = "AppData (" ++ show d ++ ")"
 
 msg_code :: Message -> Word8
-msg_code (ChangeCipherSpec) = rt_change_cipher_spec
-msg_code (Alert _ _) = rt_alert
-msg_code (Handshake _ _ _) = rt_handshake
-msg_code (AppData _) = rt_application_data
+msg_code (ChangeCipherSpec) = fromTLSRecordType $ TLS_RT_ChangeCipherSpec
+msg_code (Alert _ _) = fromTLSRecordType $ TLS_RT_Alert
+msg_code (Handshake _ _ _) = fromTLSRecordType $ TLS_RT_Handshake
+msg_code (AppData _) = fromTLSRecordType $ TLS_RT_ApplicationData
 
 -- only serialiaze the data part, no header
 msg_serialize :: Message -> B.ByteString
 msg_serialize (ChangeCipherSpec) = B.pack [1]
-msg_serialize (Alert lvl alert) = B.pack [lvl,alert]
-msg_serialize (Handshake _ t h) = B.append (B.pack $ t:Serialize.netEncode 3 (B.length h)) h
+msg_serialize (Alert lvl alert) = B.pack [fromTLSAlertLevel lvl, fromTLSAlertDescription alert]
+msg_serialize (Handshake _ t h) = B.append (B.pack $ fromTLSHandshakeType t:Serialize.netEncode 3 (B.length h)) h
 msg_serialize (AppData d) = d
 
 dummyTransformer :: StreamTransformer
 dummyTransformer = StreamTransformer () (\_ r -> return r) (\_ r -> return $ _fragments (2^(14::Int)) r)
 emptyState :: TLSState
-emptyState = TLSState { tsStreamAlert = B.empty, tsStreamHandshake = B.empty, tsStreamIn = B.empty, tsStreamOut = B.empty, tsTransform = dummyTransformer, tsVersion = rv_tls1_0, tsLastReceivedVersion = 0, tsMessagesIn = [], tsState = TLS_Open, tsTraceMessages = Nothing }
+emptyState = TLSState { tsStreamAlert = B.empty, tsStreamHandshake = B.empty, tsStreamIn = B.empty, tsStreamOut = B.empty, tsTransform = dummyTransformer, tsVersion = TLS1_0, tsLastReceivedVersion = toEnum 0, tsMessagesIn = [], tsState = TLS_Open, tsTraceMessages = Nothing }
 
 whenTLSOpen :: Monad m => StateT TLSState m () -> StateT TLSState m ()
 whenTLSOpen f = gets tsState >>= \s -> when (s == TLS_Open) f
@@ -100,10 +100,10 @@ tlsReceived d = whenTLSOpen $ do
 	put $ state { tsStreamIn = B.append (tsStreamIn state) d }
 	_tlsDecode
 
-__tlsSend :: Monad m => Word8 -> Word16 -> B.ByteString -> StateT TLSState m ()
+__tlsSend :: Monad m => Word8 -> TLSVersion -> B.ByteString -> StateT TLSState m ()
 __tlsSend rtyp rver d = whenTLSOpen $ do
 	fragments <- tlsTranformOut d
-	let rhead = B.pack (rtyp:Serialize.netEncode 2 rver)
+	let rhead = B.pack (rtyp:Serialize.netEncode 2 (fromTLSVersion rver))
 	let buf = B.concat $ concat $ map (\f -> [rhead, B.pack $ Serialize.netEncode 2 (B.length f), f]) fragments
 	modify $ \state -> state { tsStreamOut = B.append (tsStreamOut state) buf }
 
@@ -121,9 +121,9 @@ tlsKill :: Monad m => StateT TLSState m ()
 tlsKill = modify $ \state -> state { tsStreamAlert = B.empty, tsStreamHandshake = B.empty, tsStreamIn = B.empty, tsStreamOut = B.empty, tsMessagesIn = [], tsState = TLS_Killed }
 
 tlsClose :: Monad m => StateT TLSState m ()
-tlsClose = tlsCloseWithAlert al_warning ad_close_notify
+tlsClose = tlsCloseWithAlert TLS_Warning TLS_Alert_close_notify
 
-tlsCloseWithAlert :: Monad m => Word8 -> Word8 -> StateT TLSState m ()
+tlsCloseWithAlert :: Monad m => TLSAlertLevel -> TLSAlertDescription -> StateT TLSState m ()
 tlsCloseWithAlert lvl alert = whenTLSOpen $ do
 	_tlsSend (Alert lvl alert)
 	modify $ \state -> state { tsStreamAlert = B.empty, tsStreamHandshake = B.empty, tsStreamIn = B.empty, tsMessagesIn = [], tsState = TLS_Closed }
@@ -155,7 +155,7 @@ tlsRecv = do
 			_ -> tlsProcess msg >> tlsRecv -- next message
 		Nothing -> return B.empty
 
-_tlsAlert :: Monad m => Word8 -> Word8 -> StateT TLSState m ()
+_tlsAlert :: Monad m => TLSAlertLevel -> TLSAlertDescription -> StateT TLSState m ()
 _tlsAlert lvl alert = _tlsSend $ Alert lvl alert
 
 _tlsPutInMessage :: Monad m => Message -> StateT TLSState m ()
@@ -176,30 +176,25 @@ _tlsDecode = do
 			let len = Serialize.netDecode 2 [lHigh, lLow] :: Int64
 			M.when (B.length stream >= (5 + len)) $ do
 				let rver = Serialize.netDecode 2 [rvmaj, rvmin] :: Word16
-				modify $ \state -> state { tsStreamIn = B.drop (5 + len) stream, tsLastReceivedVersion = rver }
+				modify $ \state -> state { tsStreamIn = B.drop (5 + len) stream, tsLastReceivedVersion = toTLSVersion rver }
 				fragment <- tlsTranformIn (B.take len (B.drop 5 stream))
-				handle rtyp rver fragment
+				handle (toTLSRecordType rtyp) fragment
 				_tlsDecode -- loop
 	where
-		handle rtyp _ fragment
-			| rtyp == rt_change_cipher_spec = handle_csc fragment
-			| rtyp == rt_alert = handle_alert fragment
-			| rtyp == rt_handshake = handle_handshake fragment
-			| rtyp == rt_application_data = handle_appdata fragment
-			| otherwise = _tlsAlert al_fatal ad_decode_error >> fail ("Unknown content type: " ++ show rtyp)
-		handle_csc fragment = do
-			when (fragment /= B.pack [1]) $ _tlsAlert al_fatal ad_decode_error >> fail ("Unexpected Change Cipher Spec data")
+		handle TLS_RT_ChangeCipherSpec fragment = do
+			when (fragment /= B.pack [1]) $ _tlsAlert TLS_Fatal TLS_Alert_decode_error >> fail ("Unexpected Change Cipher Spec data")
 			_tlsPutInMessage ChangeCipherSpec
-		handle_alert fragment = do
-			when (B.length fragment == 0) $ _tlsAlert al_fatal ad_decode_error >> fail ("Empty alert fragment")
+		handle TLS_RT_Alert fragment = do
+			when (B.length fragment == 0) $ _tlsAlert TLS_Fatal TLS_Alert_decode_error >> fail ("Empty alert fragment")
 			modify $ \state -> state { tsStreamAlert = B.append (tsStreamAlert state) fragment }
 			_tlsDecodeAlerts
-		handle_handshake fragment = do
-			when (B.length fragment == 0) $ _tlsAlert al_fatal ad_decode_error >> fail ("Empty handshake fragment")
+		handle TLS_RT_Handshake fragment = do
+			when (B.length fragment == 0) $ _tlsAlert TLS_Fatal TLS_Alert_decode_error >> fail ("Empty handshake fragment")
 			modify $ \state -> state { tsStreamHandshake = B.append (tsStreamHandshake state) fragment }
 			_tlsDecodeHandshakes
-		handle_appdata fragment = do
+		handle TLS_RT_ApplicationData fragment = do
 			when (B.length fragment > 0) $ _tlsPutInMessage $ AppData fragment
+		handle rtyp _ = _tlsAlert TLS_Fatal TLS_Alert_decode_error >> fail ("Unknown content type: " ++ show rtyp)
 
 _tlsDecodeAlerts :: Monad m => StateT TLSState m ()
 _tlsDecodeAlerts = do
@@ -210,7 +205,7 @@ _tlsDecodeAlerts = do
 		mapM_ _tlsPutInMessage alerts
 	where
 		decode :: [Word8] -> ([Message], [Word8])
-		decode (a:b:l) = let (x,y) = decode l in (Alert a b:x, y)
+		decode (a:b:l) = let (x,y) = decode l in (Alert (toTLSAlertLevel a) (toTLSAlertDescription b):x, y)
 		decode x = ([], x)
 
 _tlsDecodeHandshakes :: Monad m => StateT TLSState m ()
@@ -223,7 +218,7 @@ _tlsDecodeHandshakes = whenTLSOpen $ do
 			modify $ \state -> state { tsStreamHandshake = B.drop (4 + len) stream }
 			curVer <- gets tsLastReceivedVersion
 			let handshake = B.take len (B.drop 4 stream)
-			_tlsPutInMessage $ Handshake curVer htype handshake
+			_tlsPutInMessage $ Handshake curVer (toTLSHandshakeType htype) handshake
 			_tlsDecodeHandshakes -- loop
 
 -- run this always before returning message to the user
@@ -231,7 +226,7 @@ _tlsDecodeHandshakes = whenTLSOpen $ do
 tlsProcessAlways :: Monad m => Message -> StateT TLSState m ()
 tlsProcessAlways msg = case msg of
 	Alert lvl _ -> do
-		when (lvl == al_fatal) tlsKill
+		when (lvl == TLS_Fatal) tlsKill
 	Handshake ver t h -> case parseHandshake ver t h of
 		Result (ServerHello shver _ _ _ _ _) -> do
 			modify $ \state -> state { tsVersion = shver }

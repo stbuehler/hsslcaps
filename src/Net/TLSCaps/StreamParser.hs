@@ -3,8 +3,13 @@
 
 module Net.TLSCaps.StreamParser
 	( IStreamParser(..)
+	, ByteStreamParserState
 	, streamRepeatParser
 	, streamParserPush
+	, streamParserFinished
+	, streamParserEmpty
+	, streamParserAppend
+	, streamParserRun
 	, ByteStreamParser(..)
 	) where
 
@@ -64,8 +69,10 @@ instance Monad m => IStreamParser (StateT B.ByteString m) where
 	tryGetString n = get >>= \a -> if ((fromIntegral n) > B.length a) then return Nothing else let (r,b) = B.splitAt (fromIntegral n) a in put b >> return (Just r)
 
 
-type ByteStreamParserState = (B.ByteString, Bool)
-data ByteStreamParser m a = ByteStreamParser { runParser :: ByteStreamParserState -> m (ByteStreamParserState, Either (ByteStreamParser m a) a) }
+type ByteStreamParserData = (B.ByteString, Bool)
+type ByteStreamParserState m = (ByteStreamParserData, Either (ByteStreamParser m ()) Bool)
+
+data ByteStreamParser m a = ByteStreamParser { runParser :: ByteStreamParserData -> m (ByteStreamParserData, Either (ByteStreamParser m a) a) }
 
 instance Monad m => Monad (ByteStreamParser m) where
 	(>>=) (ByteStreamParser f) g = ByteStreamParser $ \state -> do
@@ -93,20 +100,33 @@ instance Monad m => IStreamParser (ByteStreamParser m) where
 instance MonadTrans (ByteStreamParser) where
 	lift thing = ByteStreamParser $ \state -> thing >>= \r -> return (state, Right r)
 
-_streamParserRun :: Monad m => (ByteStreamParserState, Either (ByteStreamParser m ()) Bool) -> m (ByteStreamParserState, Either (ByteStreamParser m ()) Bool)
-_streamParserRun ((str, finished), Right _) = if (str /= B.empty) then fail "Too much data" else return ((str, finished), Right finished)
-_streamParserRun ((str, finished), Left p) = do
+streamParserRun :: Monad m => ByteStreamParserState m -> m (ByteStreamParserState m)
+streamParserRun ((str, finished), Right _) = if (str /= B.empty) then fail "Too much data" else return ((str, finished), Right finished)
+streamParserRun ((str, finished), Left p) = do
 	(state', result) <- runParser p (str, finished)
 	case result of
 		Left cont -> return (state', Left cont)
-		Right () -> _streamParserRun (state', Right False)
+		Right () -> streamParserRun (state', Right False)
 
-streamParserPush :: Monad m => (ByteStreamParserState, Either (ByteStreamParser m ()) Bool) -> Maybe B.ByteString -> m (ByteStreamParserState, Either (ByteStreamParser m ()) Bool)
-streamParserPush ((str, _), x) Nothing = _streamParserRun ((str, True), x)
-streamParserPush ((str, False), x) (Just newstr) = _streamParserRun ((B.append str newstr, False), x)
+streamParserEmpty :: Monad m => ByteStreamParserState m -> Bool
+streamParserEmpty ((str, _), _) = str == B.empty
+
+streamParserFinished :: Monad m => ByteStreamParserState m -> Bool
+streamParserFinished ((_, False), _) = False
+streamParserFinished ((str, True), _) = str == B.empty
+
+streamParserAppend :: Monad m => ByteStreamParserData -> Maybe B.ByteString -> m (ByteStreamParserData)
+streamParserAppend (str, _) Nothing = return (str, True)
+streamParserAppend (str, False) (Just newstr) = return (B.append str newstr, False)
+streamParserAppend (_, True) (Just _) = fail "Stream already closed"
+
+
+streamParserPush :: Monad m => ByteStreamParserState m -> Maybe B.ByteString -> m (ByteStreamParserState m)
+streamParserPush ((str, _), x) Nothing = streamParserRun ((str, True), x)
+streamParserPush ((str, False), x) (Just newstr) = streamParserRun ((B.append str newstr, False), x)
 streamParserPush ((_, True), _) (Just _) = fail "Stream already closed"
 
-streamRepeatParser :: Monad m => (x -> m ()) -> ByteStreamParser m x -> (ByteStreamParserState, Either (ByteStreamParser m ()) Bool)
+streamRepeatParser :: Monad m => (x -> m ()) -> ByteStreamParser m x -> ByteStreamParserState m
 streamRepeatParser handle parse = ((B.empty, False), Left go) where
 	go = tryPeekBytes 1 >>= \b -> case b of
 		Nothing -> return ()

@@ -4,6 +4,7 @@ import Net.TLSCaps
 import Net.TLSCaps.Handshake (parseHandshake)
 import Net.TLSCaps.Utils (ErrorMonad(..))
 import qualified Net.TLSCaps.Parameters as P
+import Net.TLSCaps.EnumTexts
 
 import System.Environment (getArgs)
 
@@ -24,7 +25,7 @@ tlsTrace (inout,msg) = liftIO (putStrLn $ io ++ show msg) where
 
 tlsStart :: MonadIO m => TLSMonad m ()
 tlsStart = do
-	tlsInitialize $ tlsDefaultParameters { P.tlsMinVersion = 0x302 }
+	tlsInitialize $ tlsDefaultParameters { P.tlsMinVersion = TLS1_1 }
 
 main :: IO ()
 main = do
