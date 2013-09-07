@@ -11,7 +11,7 @@ module Net.TLSCaps.Network
 	, socketStream
 	) where
 
-import Prelude hiding (catch)
+import Prelude
 
 import qualified Data.ByteString.Lazy as B
 import Data.Word (Word16)

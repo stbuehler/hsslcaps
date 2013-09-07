@@ -21,8 +21,6 @@ import Control.Monad.State (StateT, evalStateT, execStateT)
 
 import Text.Show (showListWith)
 
-import Data.List (intercalate)
-
 data Extension = Extension Word16 B.ByteString deriving (Eq)
 data Cert = Cert B.ByteString deriving (Eq)
 

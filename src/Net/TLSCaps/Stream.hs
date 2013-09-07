@@ -19,7 +19,7 @@ module Net.TLSCaps.Stream
 	, startBiStream
 	) where
 
-import Prelude hiding (catch)
+import Prelude
 
 import Control.Monad (when)
 import Control.Monad.Fix (mfix)

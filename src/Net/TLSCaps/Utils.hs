@@ -3,7 +3,6 @@ module Net.TLSCaps.Utils
 	, hexS
 	, netEncode
 	, netDecode
-	, showAsnTree
 	, decodeDER_ASN1
 	, createTLSRandom
 	, ErrorMonad(..)
@@ -12,17 +11,15 @@ module Net.TLSCaps.Utils
 import qualified Data.Array.IArray as A
 import Data.Word (Word8)
 import qualified Data.ByteString.Lazy as B
-import Data.List (intercalate)
 
-import qualified Data.ASN1.DER as DER
-import qualified Data.ASN1.Types as ASN1
-import Data.ASN1.BitArray (BitArray(..))
+import Data.ASN1.Encoding (decodeASN1)
+import Data.ASN1.BinaryEncoding (DER(..))
 
 import qualified Control.Monad as M
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import System.Random
 
-import Net.TLSCaps.OID
+-- import Net.TLSCaps.OID
 
 hexChars :: A.Array Word8 Char
 hexChars = A.listArray (0,15) (['0'..'9'] ++ ['A'..'F'])
@@ -45,38 +42,9 @@ netDecode bytes list = _work bytes 0 list where
 	_work n r (v:l) = _work (n-1) (r*256+fromIntegral v) l
 	_work _ _ [] = error "Not enough bytes"
 
-showAsnTree :: [ASN1.ASN1t] -> String
-showAsnTree [asn] = _showAsnTree1 asn
-showAsnTree asn = _showAsnTreeL asn
-
-_showAsnTreeL :: [ASN1.ASN1t] -> String
-_showAsnTreeL asn = "[" ++ intercalate "," (map _showAsnTree1 asn) ++ "]"
-
-_showAsnTree1 :: ASN1.ASN1t -> String
-_showAsnTree1 asn = case asn of
-		ASN1.OID oid -> showOID (show asn) oid
-		ASN1.PrintableString s -> show s
-		ASN1.OctetString s -> "OctetString 0x(" ++ hexS s ++ ")"
-		ASN1.BitString (BitArray len s) -> "BitString " ++ show len ++ " 0x(" ++ hexS s ++ ")"
-		ASN1.Sequence l -> if (all isMapEntry l) then _showAsnMap l else "Sequence " ++ _showAsnTreeL l
-		ASN1.Set l -> "Set " ++ _showAsnTreeL l
-		ASN1.Container cl tag l -> "Container " ++ show cl ++ " " ++ show tag ++ " " ++ _showAsnTreeL l
-		_ -> show asn
-	where
-		isMapEntry :: ASN1.ASN1t -> Bool
-		isMapEntry (ASN1.Set [ASN1.Sequence [ASN1.OID _, _]]) = True
-		isMapEntry _ = False
-
-_showAsnMap :: [ASN1.ASN1t] -> String
-_showAsnMap l = "[" ++ intercalate "," (map _showAsnMap1 l) ++ "]"
-
-_showAsnMap1 :: ASN1.ASN1t -> String
-_showAsnMap1 (ASN1.Set [ASN1.Sequence [key, value]]) = _showAsnTree1 key ++ " => " ++ _showAsnTree1 value
-_showAsnMap1 _ = error "Internal error"
-
 decodeDER_ASN1 :: B.ByteString -> String
-decodeDER_ASN1 buf = case DER.decodeASN1Stream buf of
-	Right asn -> showAsnTree (ASN1.ofStream asn)
+decodeDER_ASN1 buf = case decodeASN1 DER buf of
+	Right asn -> show asn
 	Left err -> "(DER decode error: " ++ show err ++ ") " ++ show (B.unpack buf)
 
 
