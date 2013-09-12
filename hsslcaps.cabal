@@ -9,14 +9,17 @@ homepage:       https://stbuehler.de
 
 library
   hs-source-dirs:  src
-  build-depends:   base >= 4, stm, transformers, mtl, bytestring, network, random, time, asn1-data, array, utf8-string
+  build-depends:   base >= 4, stm, transformers, mtl, bytestring, network, random, time, asn1-data, array, utf8-string, arithmoi
   ghc-options:     -Wall
   exposed-modules:
                    Net.TLSCaps,
                    Net.TLSCaps.CipherSuites,
+                   Net.TLSCaps.EllipticCurves,
                    Net.TLSCaps.EnumTexts,
                    Net.TLSCaps.Examples,
+                   Net.TLSCaps.Extensions,
                    Net.TLSCaps.Handshake,
+                   Net.TLSCaps.KeyExchange,
                    Net.TLSCaps.Network,
                    Net.TLSCaps.OID,
                    Net.TLSCaps.Parameters,
@@ -31,5 +34,5 @@ library
 executable hsslcaps
   hs-source-dirs:  src
   main-is:         Main.hs
-  build-depends:   base >= 4, stm, transformers, mtl, bytestring, network, random, time, asn1-data, array, utf8-string, hsslcaps
+  build-depends:   base >= 4, stm, transformers, mtl, bytestring, network, random, time, asn1-data, array, utf8-string, arithmoi, hsslcaps
   ghc-options:     -Wall

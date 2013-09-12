@@ -38,6 +38,14 @@ module Net.TLSCaps.EnumTexts
 	, toTLSCompressionMethod
 	, fromTLSCompressionMethod
 
+	, TLSEllipticNameCurve(..)
+	, toTLSEllipticNameCurve
+	, fromTLSEllipticNameCurve
+
+	, TLSECPointFormat(..)
+	, toTLSECPointFormat
+	, fromTLSECPointFormat
+
 	, CipherSuite(..)
 	, MacAlgorithm(..)
 	, CipherAlgorithm(..)
@@ -149,7 +157,7 @@ instance Show TLSAlertLevel where
 
 -- alert descriptions
 newtype TLSAlertDescriptionRaw = TLSAlertDescriptionRaw Word8 deriving (Eq)
-data TLSAlertDescription = TLS_Alert_close_notify | TLS_Alert_unexpected_message | TLS_Alert_bad_record_mac | TLS_Alert_decryption_failed_RESERVED | TLS_Alert_record_overflow | TLS_Alert_decompression_failure
+data TLSAlertDescription = TLS_Alert_close_notify | TLS_Alert_unexpected_message | TLS_Alert_bad_record_mac | TLS_Alert_decryption_failed | TLS_Alert_record_overflow | TLS_Alert_decompression_failure
 	| TLS_Alert_handshake_failure | TLS_Alert_no_certificate_RESERVED | TLS_Alert_bad_certificate | TLS_Alert_unsupported_certificate | TLS_Alert_certificate_revoked | TLS_Alert_certificate_expired
 	| TLS_Alert_certificate_unknown | TLS_Alert_illegal_parameter | TLS_Alert_unknown_ca | TLS_Alert_access_denied | TLS_Alert_decode_error | TLS_Alert_decrypt_error | TLS_Alert_export_restriction_RESERVED
 	| TLS_Alert_protocol_version | TLS_Alert_insufficient_security | TLS_Alert_internal_error | TLS_Alert_user_canceled | TLS_Alert_no_renegotiation | TLS_Alert_unsupported_extension
@@ -160,7 +168,7 @@ toTLSAlertDescription :: Word8 -> TLSAlertDescription
 toTLSAlertDescription 0   = TLS_Alert_close_notify
 toTLSAlertDescription 10  = TLS_Alert_unexpected_message
 toTLSAlertDescription 20  = TLS_Alert_bad_record_mac
-toTLSAlertDescription 21  = TLS_Alert_decryption_failed_RESERVED
+toTLSAlertDescription 21  = TLS_Alert_decryption_failed
 toTLSAlertDescription 22  = TLS_Alert_record_overflow
 toTLSAlertDescription 30  = TLS_Alert_decompression_failure
 toTLSAlertDescription 40  = TLS_Alert_handshake_failure
@@ -193,7 +201,7 @@ fromTLSAlertDescription :: TLSAlertDescription -> Word8
 fromTLSAlertDescription TLS_Alert_close_notify                    = 0
 fromTLSAlertDescription TLS_Alert_unexpected_message              = 10
 fromTLSAlertDescription TLS_Alert_bad_record_mac                  = 20
-fromTLSAlertDescription TLS_Alert_decryption_failed_RESERVED      = 21
+fromTLSAlertDescription TLS_Alert_decryption_failed               = 21
 fromTLSAlertDescription TLS_Alert_record_overflow                 = 22
 fromTLSAlertDescription TLS_Alert_decompression_failure           = 30
 fromTLSAlertDescription TLS_Alert_handshake_failure               = 40
@@ -234,7 +242,7 @@ instance Show TLSAlertDescription where
 	show TLS_Alert_close_notify                    = "Close notify"
 	show TLS_Alert_unexpected_message              = "Unexpected message"
 	show TLS_Alert_bad_record_mac                  = "Bad record mac"
-	show TLS_Alert_decryption_failed_RESERVED      = "Decryption failed"
+	show TLS_Alert_decryption_failed               = "Decryption failed"
 	show TLS_Alert_record_overflow                 = "Record Overflow"
 	show TLS_Alert_decompression_failure           = "Decompression failure"
 	show TLS_Alert_handshake_failure               = "Handshake failure"
@@ -492,3 +500,182 @@ instance Show TLSCompressionMethod where
 	show TLS_DEFLATE   = "DEFLATE"
 	show TLS_LZS       = "LZS"
 	show (TLS_CompressionMethod_Raw (TLSCompressionMethodRaw x)) = "Unknown compression method " ++ show x
+
+
+-- elliptic named curves
+newtype TLSEllipticNameCurveRaw = TLSEllipticNameCurveRaw Word16 deriving (Eq)
+data TLSEllipticNameCurve
+	= TLS_EC_sect163k1
+	| TLS_EC_sect163r1
+	| TLS_EC_sect163r2
+	| TLS_EC_sect193r1
+	| TLS_EC_sect193r2
+	| TLS_EC_sect233k1
+	| TLS_EC_sect233r1
+	| TLS_EC_sect239k1
+	| TLS_EC_sect283k1
+	| TLS_EC_sect283r1
+	| TLS_EC_sect409k1
+	| TLS_EC_sect409r1
+	| TLS_EC_sect571k1
+	| TLS_EC_sect571r1
+	| TLS_EC_secp160k1
+	| TLS_EC_secp160r1
+	| TLS_EC_secp160r2
+	| TLS_EC_secp192k1
+	| TLS_EC_secp192r1
+	| TLS_EC_secp224k1
+	| TLS_EC_secp224r1
+	| TLS_EC_secp256k1
+	| TLS_EC_secp256r1
+	| TLS_EC_secp384r1
+	| TLS_EC_secp521r1
+	| TLS_EC_brainpoolP256r1
+	| TLS_EC_brainpoolP384r1
+	| TLS_EC_brainpoolP512r1
+	| TLS_EC_arbitrary_explicit_prime_curves
+	| TLS_EC_arbitrary_explicit_char2_curves
+	| TLS_EllipticNameCurve_Raw !TLSEllipticNameCurveRaw deriving (Eq)
+
+toTLSEllipticNameCurve :: Word16 -> TLSEllipticNameCurve
+toTLSEllipticNameCurve 1     = TLS_EC_sect163k1
+toTLSEllipticNameCurve 2     = TLS_EC_sect163r1
+toTLSEllipticNameCurve 3     = TLS_EC_sect163r2
+toTLSEllipticNameCurve 4     = TLS_EC_sect193r1
+toTLSEllipticNameCurve 5     = TLS_EC_sect193r2
+toTLSEllipticNameCurve 6     = TLS_EC_sect233k1
+toTLSEllipticNameCurve 7     = TLS_EC_sect233r1
+toTLSEllipticNameCurve 8     = TLS_EC_sect239k1
+toTLSEllipticNameCurve 9     = TLS_EC_sect283k1
+toTLSEllipticNameCurve 10    = TLS_EC_sect283r1
+toTLSEllipticNameCurve 11    = TLS_EC_sect409k1
+toTLSEllipticNameCurve 12    = TLS_EC_sect409r1
+toTLSEllipticNameCurve 13    = TLS_EC_sect571k1
+toTLSEllipticNameCurve 14    = TLS_EC_sect571r1
+toTLSEllipticNameCurve 15    = TLS_EC_secp160k1
+toTLSEllipticNameCurve 16    = TLS_EC_secp160r1
+toTLSEllipticNameCurve 17    = TLS_EC_secp160r2
+toTLSEllipticNameCurve 18    = TLS_EC_secp192k1
+toTLSEllipticNameCurve 19    = TLS_EC_secp192r1
+toTLSEllipticNameCurve 20    = TLS_EC_secp224k1
+toTLSEllipticNameCurve 21    = TLS_EC_secp224r1
+toTLSEllipticNameCurve 22    = TLS_EC_secp256k1
+toTLSEllipticNameCurve 23    = TLS_EC_secp256r1
+toTLSEllipticNameCurve 24    = TLS_EC_secp384r1
+toTLSEllipticNameCurve 25    = TLS_EC_secp521r1
+toTLSEllipticNameCurve 26    = TLS_EC_brainpoolP256r1
+toTLSEllipticNameCurve 27    = TLS_EC_brainpoolP384r1
+toTLSEllipticNameCurve 28    = TLS_EC_brainpoolP512r1
+toTLSEllipticNameCurve 65281 = TLS_EC_arbitrary_explicit_prime_curves
+toTLSEllipticNameCurve 65282 = TLS_EC_arbitrary_explicit_char2_curves
+toTLSEllipticNameCurve x     = TLS_EllipticNameCurve_Raw $ TLSEllipticNameCurveRaw x
+
+fromTLSEllipticNameCurve :: TLSEllipticNameCurve -> Word16
+fromTLSEllipticNameCurve TLS_EC_sect163k1                       =  1
+fromTLSEllipticNameCurve TLS_EC_sect163r1                       =  2
+fromTLSEllipticNameCurve TLS_EC_sect163r2                       =  3
+fromTLSEllipticNameCurve TLS_EC_sect193r1                       =  4
+fromTLSEllipticNameCurve TLS_EC_sect193r2                       =  5
+fromTLSEllipticNameCurve TLS_EC_sect233k1                       =  6
+fromTLSEllipticNameCurve TLS_EC_sect233r1                       =  7
+fromTLSEllipticNameCurve TLS_EC_sect239k1                       =  8
+fromTLSEllipticNameCurve TLS_EC_sect283k1                       =  9
+fromTLSEllipticNameCurve TLS_EC_sect283r1                       =  10
+fromTLSEllipticNameCurve TLS_EC_sect409k1                       =  11
+fromTLSEllipticNameCurve TLS_EC_sect409r1                       =  12
+fromTLSEllipticNameCurve TLS_EC_sect571k1                       =  13
+fromTLSEllipticNameCurve TLS_EC_sect571r1                       =  14
+fromTLSEllipticNameCurve TLS_EC_secp160k1                       =  15
+fromTLSEllipticNameCurve TLS_EC_secp160r1                       =  16
+fromTLSEllipticNameCurve TLS_EC_secp160r2                       =  17
+fromTLSEllipticNameCurve TLS_EC_secp192k1                       =  18
+fromTLSEllipticNameCurve TLS_EC_secp192r1                       =  19
+fromTLSEllipticNameCurve TLS_EC_secp224k1                       =  20
+fromTLSEllipticNameCurve TLS_EC_secp224r1                       =  21
+fromTLSEllipticNameCurve TLS_EC_secp256k1                       =  22
+fromTLSEllipticNameCurve TLS_EC_secp256r1                       =  23
+fromTLSEllipticNameCurve TLS_EC_secp384r1                       =  24
+fromTLSEllipticNameCurve TLS_EC_secp521r1                       =  25
+fromTLSEllipticNameCurve TLS_EC_brainpoolP256r1                 =  26
+fromTLSEllipticNameCurve TLS_EC_brainpoolP384r1                 =  27
+fromTLSEllipticNameCurve TLS_EC_brainpoolP512r1                 =  28
+fromTLSEllipticNameCurve TLS_EC_arbitrary_explicit_prime_curves =  65281
+fromTLSEllipticNameCurve TLS_EC_arbitrary_explicit_char2_curves =  65282
+fromTLSEllipticNameCurve (TLS_EllipticNameCurve_Raw ( TLSEllipticNameCurveRaw x)) = x
+
+instance Bounded TLSEllipticNameCurve where
+	minBound = toTLSEllipticNameCurve minBound
+	maxBound = toTLSEllipticNameCurve maxBound
+instance Enum TLSEllipticNameCurve where
+	toEnum = toTLSEllipticNameCurve . toEnum
+	fromEnum = fromEnum . fromTLSEllipticNameCurve
+instance Ord TLSEllipticNameCurve where
+	(<=) x y = (<=) (fromTLSEllipticNameCurve x) (fromTLSEllipticNameCurve y)
+instance Show TLSEllipticNameCurve where
+	show TLS_EC_sect163k1                       =  "sect163k1"
+	show TLS_EC_sect163r1                       =  "sect163r1"
+	show TLS_EC_sect163r2                       =  "sect163r2"
+	show TLS_EC_sect193r1                       =  "sect193r1"
+	show TLS_EC_sect193r2                       =  "sect193r2"
+	show TLS_EC_sect233k1                       =  "sect233k1"
+	show TLS_EC_sect233r1                       =  "sect233r1"
+	show TLS_EC_sect239k1                       =  "sect239k1"
+	show TLS_EC_sect283k1                       =  "sect283k1"
+	show TLS_EC_sect283r1                       =  "sect283r1"
+	show TLS_EC_sect409k1                       =  "sect409k1"
+	show TLS_EC_sect409r1                       =  "sect409r1"
+	show TLS_EC_sect571k1                       =  "sect571k1"
+	show TLS_EC_sect571r1                       =  "sect571r1"
+	show TLS_EC_secp160k1                       =  "secp160k1"
+	show TLS_EC_secp160r1                       =  "secp160r1"
+	show TLS_EC_secp160r2                       =  "secp160r2"
+	show TLS_EC_secp192k1                       =  "secp192k1"
+	show TLS_EC_secp192r1                       =  "secp192r1"
+	show TLS_EC_secp224k1                       =  "secp224k1"
+	show TLS_EC_secp224r1                       =  "secp224r1"
+	show TLS_EC_secp256k1                       =  "secp256k1"
+	show TLS_EC_secp256r1                       =  "secp256r1"
+	show TLS_EC_secp384r1                       =  "secp384r1"
+	show TLS_EC_secp521r1                       =  "secp521r1"
+	show TLS_EC_brainpoolP256r1                 =  "brainpoolP256r1"
+	show TLS_EC_brainpoolP384r1                 =  "brainpoolP384r1"
+	show TLS_EC_brainpoolP512r1                 =  "brainpoolP512r1"
+	show TLS_EC_arbitrary_explicit_prime_curves =  "arbitrary_explicit_prime_curves"
+	show TLS_EC_arbitrary_explicit_char2_curves =  "arbitrary_explicit_char2_curves"
+	show (TLS_EllipticNameCurve_Raw ( TLSEllipticNameCurveRaw x)) = "Unknown elliptic curve name " ++ show x
+
+
+-- elliptic curves point formats
+newtype TLSECPointFormatRaw = TLSECPointFormatRaw Word8 deriving (Eq)
+data TLSECPointFormat
+	= TLS_ECPF_Raw !TLSECPointFormatRaw
+	| TLS_ECPF_uncompressed
+	| TLS_ECPF_ansiX962_compressed_prime
+	| TLS_ECPF_ansiX962_compressed_char2
+	deriving (Eq)
+
+toTLSECPointFormat :: Word8 -> TLSECPointFormat
+toTLSECPointFormat 0     = TLS_ECPF_uncompressed
+toTLSECPointFormat 1     = TLS_ECPF_ansiX962_compressed_prime
+toTLSECPointFormat 2     = TLS_ECPF_ansiX962_compressed_char2
+toTLSECPointFormat x     = TLS_ECPF_Raw $ TLSECPointFormatRaw x
+
+fromTLSECPointFormat :: TLSECPointFormat -> Word8
+fromTLSECPointFormat TLS_ECPF_uncompressed              = 0
+fromTLSECPointFormat TLS_ECPF_ansiX962_compressed_prime = 1
+fromTLSECPointFormat TLS_ECPF_ansiX962_compressed_char2 = 2
+fromTLSECPointFormat (TLS_ECPF_Raw ( TLSECPointFormatRaw x)) = x
+
+instance Bounded TLSECPointFormat where
+	minBound = toTLSECPointFormat minBound
+	maxBound = toTLSECPointFormat maxBound
+instance Enum TLSECPointFormat where
+	toEnum = toTLSECPointFormat . toEnum
+	fromEnum = fromEnum . fromTLSECPointFormat
+instance Ord TLSECPointFormat where
+	(<=) x y = (<=) (fromTLSECPointFormat x) (fromTLSECPointFormat y)
+instance Show TLSECPointFormat where
+	show TLS_ECPF_uncompressed              = "uncompressed"
+	show TLS_ECPF_ansiX962_compressed_prime = "ansiX962_compressed_prime"
+	show TLS_ECPF_ansiX962_compressed_char2 = "ansiX962_compressed_char2"
+	show (TLS_ECPF_Raw ( TLSECPointFormatRaw x)) = "Unknown elliptic curve name " ++ show x

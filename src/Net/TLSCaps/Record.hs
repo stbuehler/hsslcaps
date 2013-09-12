@@ -47,7 +47,17 @@ data StreamTransformer = forall s. StreamTransformer { rtState :: s, rtTransIn :
 data TLSIOState = TLS_Open | TLS_Closed | TLS_Killed deriving (Show, Eq)
 
 -- tsTraceMessages contains recent messages in front; True: in, False: out
-data TLSState = TLSState { tsStreamAlert, tsStreamHandshake, tsStreamIn, tsStreamOut :: B.ByteString, tsTransform :: StreamTransformer, tsVersion :: TLSVersion, tsLastReceivedVersion :: TLSVersion, tsMessagesIn :: [Message], tsState :: TLSIOState, tsTraceMessages :: Maybe [(Bool,Message)] }
+data TLSState = TLSState
+	{ tsStreamAlert, tsStreamHandshake, tsStreamIn, tsStreamOut :: B.ByteString
+	, tsCurrentHandshakeInMessages :: [Message]
+	, tsCurrentHandshakeInData, tsCurrentHandshakeOutData :: B.ByteString
+	, tsTransform :: StreamTransformer
+	, tsVersion :: TLSVersion
+	, tsLastReceivedVersion :: TLSVersion
+	, tsMessagesIn :: [Message]
+	, tsState :: TLSIOState
+	, tsTraceMessages :: Maybe [(Bool,Message)]
+	}
 
 _fragments :: Int -> B.ByteString -> [B.ByteString]
 _fragments n s = if (B.length s > (fromIntegral n)) then let (a,b) = B.splitAt (fromIntegral n) s in a:_fragments n b else [s]
@@ -79,7 +89,15 @@ msg_serialize (AppData d) = d
 dummyTransformer :: StreamTransformer
 dummyTransformer = StreamTransformer () (\_ r -> return r) (\_ r -> return $ _fragments (2^(14::Int)) r)
 emptyState :: TLSState
-emptyState = TLSState { tsStreamAlert = B.empty, tsStreamHandshake = B.empty, tsStreamIn = B.empty, tsStreamOut = B.empty, tsTransform = dummyTransformer, tsVersion = TLS1_0, tsLastReceivedVersion = toEnum 0, tsMessagesIn = [], tsState = TLS_Open, tsTraceMessages = Nothing }
+emptyState = TLSState
+	{ tsStreamAlert = B.empty, tsStreamHandshake = B.empty, tsStreamIn = B.empty, tsStreamOut = B.empty
+	, tsCurrentHandshakeInMessages = [], tsCurrentHandshakeInData = B.empty, tsCurrentHandshakeOutData = B.empty
+	, tsTransform = dummyTransformer
+	, tsVersion = TLS1_0
+	, tsLastReceivedVersion = toEnum 0
+	, tsMessagesIn = []
+	, tsState = TLS_Open
+	, tsTraceMessages = Nothing }
 
 whenTLSOpen :: Monad m => StateT TLSState m () -> StateT TLSState m ()
 whenTLSOpen f = gets tsState >>= \s -> when (s == TLS_Open) f
