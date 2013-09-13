@@ -28,7 +28,8 @@ library
                    Net.TLSCaps.Stream,
                    Net.TLSCaps.StreamParser,
                    Net.TLSCaps.TLSStream,
-                   Net.TLSCaps.Utils
+                   Net.TLSCaps.Utils,
+                   Net.TLSCaps.Tests.EllipticCurves
 
 
 executable hsslcaps
